@@ -16,6 +16,7 @@ import (
 	"github.com/GeertJohan/go.rice"
 	"github.com/andreimarcu/linx-server/backends"
 	"github.com/andreimarcu/linx-server/backends/localfs"
+	"github.com/andreimarcu/linx-server/backends/metajson"
 	"github.com/flosch/pongo2"
 	"github.com/vharitonsky/iniflags"
 	"github.com/zenazn/goji/graceful"
@@ -57,6 +58,7 @@ var Config struct {
 	remoteAuthFile            string
 	addHeaders                headerList
 	googleShorterAPIKey       string
+	noDirectAgents            bool
 }
 
 var Templates = make(map[string]*pongo2.Template)
@@ -65,7 +67,8 @@ var staticBox *rice.Box
 var timeStarted time.Time
 var timeStartedStr string
 var remoteAuthKeys []string
-var metaBackend backends.StorageBackend
+var metaStorageBackend backends.MetaStorageBackend
+var metaBackend backends.MetaBackend
 var fileBackend backends.StorageBackend
 
 func setup() *web.Mux {
@@ -124,7 +127,8 @@ func setup() *web.Mux {
 		Config.sitePath = "/"
 	}
 
-	metaBackend = localfs.NewLocalfsBackend(Config.metaDir)
+	metaStorageBackend = localfs.NewLocalfsBackend(Config.metaDir)
+	metaBackend = metajson.NewMetaJSONBackend(metaStorageBackend)
 	fileBackend = localfs.NewLocalfsBackend(Config.filesDir)
 
 	// Template setup
@@ -240,6 +244,8 @@ func main() {
 		"Add an arbitrary header to the response. This option can be used multiple times.")
 	flag.StringVar(&Config.googleShorterAPIKey, "googleapikey", "",
 		"API Key for Google's URL Shortener.")
+	flag.BoolVar(&Config.noDirectAgents, "nodirectagents", false,
+		"disable serving files directly for wget/curl user agents")
 
 	iniflags.Parse()
 

@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/andreimarcu/linx-server/expiry"
 	"github.com/dustin/go-humanize"
 	"github.com/flosch/pongo2"
 	"github.com/microcosm-cc/bluemonday"
@@ -17,7 +19,14 @@ import (
 
 const maxDisplayFileSizeBytes = 1024 * 512
 
+var cliUserAgentRe = regexp.MustCompile("(?i)(lib)?curl|wget")
+
 func fileDisplayHandler(c web.C, w http.ResponseWriter, r *http.Request) {
+	if !Config.noDirectAgents && cliUserAgentRe.MatchString(r.Header.Get("User-Agent")) {
+		fileServeHandler(c, w, r)
+		return
+	}
+
 	fileName := c.URLParams["name"]
 
 	err := checkFile(fileName)
@@ -32,7 +41,7 @@ func fileDisplayHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var expiryHuman string
-	if metadata.Expiry != neverExpire {
+	if metadata.Expiry != expiry.NeverExpire {
 		expiryHuman = humanize.RelTime(time.Now(), metadata.Expiry, "", "")
 	}
 	sizeHuman := humanize.Bytes(uint64(metadata.Size))
